@@ -4,10 +4,10 @@ import time
 from . import agent
 
 
-class RateLimitor(agent.AiAgent):
-    def __init__(self, inner: agent.AiAgent, rate_limit_per_minute: float | None = None):
+class RateLimiter(agent.AiAgent):
+    def __init__(self, inner: agent.AiAgent, max_request_per_minute: float | None = None):
         self._inner = inner
-        self._rate_limit_per_minute = rate_limit_per_minute
+        self._max_request_per_minute = max_request_per_minute
         self._last_request_time = None
 
     def ready(self) -> bool:
@@ -18,12 +18,12 @@ class RateLimitor(agent.AiAgent):
         return self._inner.generate(prompt, system_instruction=system_instruction, skills=skills)
 
     def _acquire_rate_limit(self, block: bool = True) -> bool:
-        if self._rate_limit_per_minute is None or self._rate_limit_per_minute <= 0:
+        if self._max_request_per_minute is None or self._max_request_per_minute <= 0:
             return True
 
         if self._last_request_time is not None:
             elapsed = time.monotonic() - self._last_request_time
-            min_interval = 60.0 / self._rate_limit_per_minute
+            min_interval = 60.0 / self._max_request_per_minute
             if elapsed < min_interval:
                 if block:
                     time.sleep(min_interval - elapsed)
