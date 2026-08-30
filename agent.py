@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import json
-import time
+import pydantic
+
 from abc import ABC, abstractmethod
-from urllib import error, request
+from typing import Any
 
 
 class AiAgent(ABC):
@@ -11,6 +11,16 @@ class AiAgent(ABC):
 
     @abstractmethod
     def generate(self, prompt: str, system_instruction: str | None = None, skills: list[str] | None = None) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def generate_proto(
+        self,
+        output_proto_model: pydantic.BaseModel,
+        output_proto_class: type,
+        prompt: str,
+        system_instruction: str | None = None,
+        skills: list[str] | None = None) -> Any:
         raise NotImplementedError
 
 

@@ -1,56 +1,52 @@
 #!/usr/bin/env python3
-import json
+import pydantic
 
 from . import agent
-from urllib import error, request
 
+from google import genai
+from typing import Any
 
 class Gemini(agent.AiAgent):
     def __init__(self, api_key: str, model: str):
-        self.api_key = api_key
-        self.model = model
+        self._client = genai.Client(api_key=api_key)
+        self._model = model
 
     def generate(self, prompt: str, system_instruction: str | None = None, skills: list[str] | None = None) -> str:
-        endpoint = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        contents = self._build_contents(prompt, system_instruction, skills)
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=contents                
         )
+        return response.text
 
-        instruction_parts = []
+    def generate_proto(
+        self,
+        output_proto_model: pydantic.BaseModel,
+        output_proto_class: type,
+        prompt: str,
+        system_instruction: str | None = None,
+        skills: list[str] | None = None) -> Any:
+        contents = self._build_contents(prompt, system_instruction, skills)
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=contents,
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=output_proto_model,
+                temperature=0.2  # Lower temperature helps maintain strict adherence
+            )
+        )
+        return output_proto_class.from_json(response.text)
+
+    def _build_contents(self, prompt: str, system_instruction: str | None = None, skills: list[str] | None = None) -> str:
+        parts = []
         if system_instruction:
-            instruction_parts.append(system_instruction)
+            parts.append(system_instruction)
         if skills:
             skill_text = "\n".join(f"- {skill}" for skill in skills if skill)
             if skill_text:
-                instruction_parts.append(f"Skills:\n{skill_text}")
+                parts.append(f"Skills:\n{skill_text}")
 
-        combined_instruction = "\n\n".join(instruction_parts).strip() if instruction_parts else None
+        parts.append(prompt)
 
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7},
-        }
-        if combined_instruction:
-            payload["system_instruction"] = {"parts": [{"text": combined_instruction}]}
-        data = json.dumps(payload).encode("utf-8")
-
-        req = request.Request(
-            f"{endpoint}?key={self.api_key}",
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
-        try:
-            with request.urlopen(req, timeout=120) as response:
-                body = response.read().decode("utf-8")
-        except error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Gemini API request failed: {exc.code} {detail}") from exc
-        except error.URLError as exc:
-            raise RuntimeError(f"Gemini API request failed: {exc.reason}") from exc
-
-        result = json.loads(body)
-        try:
-            return result["candidates"][0]["content"]["parts"][0]["text"].strip()
-        except (KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError(f"Unexpected Gemini response: {body}") from exc
+        return "\n\n".join(parts).strip()

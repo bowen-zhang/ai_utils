@@ -1,5 +1,8 @@
 
+import pydantic
 import time
+
+from typing import Any
 
 from . import agent
 
@@ -16,6 +19,22 @@ class RateLimiter(agent.AiAgent):
     def generate(self, prompt: str, system_instruction: str | None = None, skills: list[str] | None = None) -> str:
         self._acquire_rate_limit(block=True)
         return self._inner.generate(prompt, system_instruction=system_instruction, skills=skills)
+
+    def generate_proto(
+        self,
+        output_proto_model: pydantic.BaseModel,
+        output_proto_class: type,
+        prompt: str,
+        system_instruction: str | None = None,
+        skills: list[str] | None = None) -> Any:
+        self._acquire_rate_limit(block=True)
+        return self._inner.generate_proto(
+            output_proto_model=output_proto_model,
+            output_proto_class=output_proto_class,
+            prompt=prompt,
+            system_instruction=system_instruction,
+            skills=skills
+        )
 
     def _acquire_rate_limit(self, block: bool = True) -> bool:
         if self._max_request_per_minute is None or self._max_request_per_minute <= 0:
